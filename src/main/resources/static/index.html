@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Student Task Manager</title>
+
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background: #f1f5f9;
+            margin: 0;
+            padding: 30px;
+        }
+
+        .container {
+            max-width: 850px;
+            margin: auto;
+            background: white;
+            padding: 25px;
+            border-radius: 12px;
+        }
+
+        h1 {
+            color: #234e70;
+            text-align: center;
+        }
+
+        input, textarea, button {
+            box-sizing: border-box;
+            width: 100%;
+            padding: 11px;
+            margin: 7px 0;
+        }
+
+        button {
+            background: #2563eb;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+
+        .task {
+            background: #eef2ff;
+            padding: 12px;
+            margin-top: 12px;
+            border-radius: 8px;
+        }
+
+        .task button {
+            width: auto;
+            padding: 8px 12px;
+            margin-right: 5px;
+        }
+
+        .completed {
+            text-decoration: line-through;
+            color: #64748b;
+        }
+
+        #message {
+            color: #b91c1c;
+        }
+    </style>
+</head>
+
+<body>
+<div class="container">
+    <h1>Student Task & Deadline Manager</h1>
+    <p>Organize your assignments and never miss a deadline!</p>
+
+    <form id="taskForm">
+        <input id="title" placeholder="Task title" required>
+        <textarea id="description"
+                  placeholder="Task description"></textarea>
+        <label for="dueDate">Deadline:</label>
+        <input id="dueDate" type="date" required>
+        <button type="submit">Add Task</button>
+    </form>
+
+    <p id="message"></p>
+    <h2>My Tasks</h2>
+    <div id="taskList"></div>
+</div>
+
+<script>
+    const API = "/api/tasks";
+
+    async function loadTasks() {
+        const list = document.getElementById("taskList");
+        const message = document.getElementById("message");
+
+        try {
+            const response = await fetch(API);
+            if (!response.ok) throw new Error("Could not load tasks");
+
+            const tasks = await response.json();
+            list.replaceChildren();
+            message.textContent = "";
+
+            if (tasks.length === 0) {
+                list.textContent = "No tasks yet. Add your first task!";
+            }
+
+            tasks.forEach(task => {
+                const card = document.createElement("div");
+                card.className = "task";
+
+                const heading = document.createElement("h3");
+                heading.textContent = task.title;
+                if (task.completed) heading.className = "completed";
+
+                const description = document.createElement("p");
+                description.textContent = task.description || "";
+
+                const deadline = document.createElement("p");
+                deadline.textContent = "Deadline: " + task.dueDate;
+
+                const status = document.createElement("p");
+                status.textContent = task.completed
+                    ? "Status: Completed"
+                    : "Status: Pending";
+
+                const completeButton = document.createElement("button");
+                completeButton.textContent = task.completed
+                    ? "Mark Pending" : "Complete";
+                completeButton.onclick = () => updateTask(task);
+
+                const deleteButton = document.createElement("button");
+                deleteButton.textContent = "Delete";
+                deleteButton.style.background = "#dc2626";
+                deleteButton.onclick = () => deleteTask(task.id);
+
+                card.append(heading, description, deadline, status,
+                            completeButton, deleteButton);
+                list.appendChild(card);
+            });
+        } catch (error) {
+            message.textContent =
+                "Cannot connect to the server. Check that Spring Boot is running.";
+        }
+    }
+
+    document.getElementById("taskForm").addEventListener("submit",
+        async function(event) {
+            event.preventDefault();
+
+            const task = {
+                title: document.getElementById("title").value.trim(),
+                description: document.getElementById("description").value.trim(),
+                dueDate: document.getElementById("dueDate").value,
+                completed: false
+            };
+
+            try {
+                const response = await fetch(API, {
+                    method: "POST",
+                    headers: {"Content-Type": "application/json"},
+                    body: JSON.stringify(task)
+                });
+
+                if (!response.ok) throw new Error("Could not add task");
+
+                this.reset();
+                await loadTasks();
+            } catch (error) {
+                document.getElementById("message").textContent =
+                    "Could not add task. Check the server and form values.";
+            }
+        });
+
+    async function updateTask(task) {
+        try {
+            const response = await fetch(API + "/" + task.id, {
+                method: "PUT",
+                headers: {"Content-Type": "application/json"},
+                body: JSON.stringify({
+                    ...task,
+                    completed: !task.completed
+                })
+            });
+
+            if (!response.ok) throw new Error("Update failed");
+            await loadTasks();
+        } catch (error) {
+            document.getElementById("message").textContent =
+                "Could not update task.";
+        }
+    }
+
+    async function deleteTask(id) {
+        if (!confirm("Are you sure you want to delete this task?")) return;
+
+        try {
+            const response = await fetch(API + "/" + id, {
+                method: "DELETE"
+            });
+
+            if (!response.ok) throw new Error("Delete failed");
+            await loadTasks();
+        } catch (error) {
+            document.getElementById("message").textContent =
+                "Could not delete task.";
+        }
+    }
+
+    loadTasks();
+</script>
+</body>
+</html>
